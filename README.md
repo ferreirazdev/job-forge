@@ -82,10 +82,17 @@ This roadmap maps features directly to the concurrency fundamentals.
 
 **Goal:** create the first working asynchronous email flow.
 
-- Define `Job` with channel, payload, metadata, and attempt count
-- Create a `jobs` channel and spawn basic worker goroutines
-- Process email jobs from queue and simulate/execute delivery
-- Ensure workers terminate correctly when channel is closed
+**Status (implemented in this repo):** completed the basic end-to-end pipeline for `email`.
+
+**What’s running in F1 now:**
+- `cmd/notifier/main.go` boots the process, starts the RabbitMQ consumer, and feeds a Go `jobs` channel
+- `internal/worker/pool.go` spawns `WORKER_COUNT` goroutines and runs jobs concurrently
+- `internal/channels/router.go` routes by `job.Channel` (`email` now)
+- `internal/channels/email/handler.go` decodes the payload and simulates delivery (with an optional failure flag)
+
+**Failure semantics in F1 (early retry behavior):**
+- On handler error: `Nack(requeue=true)` for the first failure
+- On handler error again (RabbitMQ redelivers): `Nack(requeue=false)` so the message “expires” (or goes to DLQ if you configure one later)
 
 **Output:** queue-fed email jobs processed concurrently by fixed workers.
 
@@ -132,6 +139,55 @@ This roadmap maps features directly to the concurrency fundamentals.
 - Expose lightweight metrics endpoint
 
 **Output:** measurable runtime behavior and ready base for observability tools.
+
+---
+## How to run F1 locally (RabbitMQ + worker)
+1. Start RabbitMQ (docker):
+   - `docker compose up -d`
+2. Create `.env` from `.env.example` (adjust only if needed):
+   - `cp .env.example .env`
+3. Run the worker:
+   - `go run ./cmd/notifier`
+4. Publish a test message to the bound queue:
+   - Exchange: `RABBITMQ_EXCHANGE` (`jobforge.exchange`)
+   - Routing key: `RABBITMQ_ROUTING_KEY` (`email.send`)
+
+Example job JSON:
+```json
+{
+  "id": "job-1",
+  "channel": "email",
+  "payload": {
+    "to": "user@example.com",
+    "subject": "hello",
+    "body": "test"
+  },
+  "metadata": { "source": "manual" },
+  "attempt": 0
+}
+```
+
+To test failure/“expira”:
+```json
+{
+  "id": "job-2",
+  "channel": "email",
+  "payload": {
+    "to": "user@example.com",
+    "subject": "will fail",
+    "body": "test",
+    "should_fail": true
+  },
+  "metadata": { "source": "manual" },
+  "attempt": 0
+}
+```
+
+---
+## Next steps (F2 -> F4)
+1. F2: improve graceful shutdown by cancelling the AMQP consumer and ensuring in-flight jobs are handled deterministically
+2. F3: add proper retry engine (attempt counter + backoff/jitter) and per-job timeout (`context.WithTimeout`)
+3. F4: implement results fan-in + basic metrics counters/latency, and expose a lightweight metrics endpoint
 
 ---
 
