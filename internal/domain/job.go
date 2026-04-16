@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	channelEmail = "email"
+	ChannelEmail = "email"
 )
 
 type Job struct {

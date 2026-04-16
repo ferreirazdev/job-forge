@@ -51,7 +51,11 @@ func (p *Pool) Start(ctx context.Context, jobs <-chan JobMessage) *sync.WaitGrou
 					log.Printf("[worker %d] FAIL job_id=%s channel=%s latency=%s err=%v",
 						workerID, msg.Job.ID, msg.Job.Channel, latency, err)
 
-					_ = msg.Delivery.Nack(false, false)
+					if msg.Delivery.Redelivered {
+						_ = msg.Delivery.Nack(false, false) // expira (ou DLQ, se configurado)
+					} else {
+						_ = msg.Delivery.Nack(false, true) // requeue uma vez
+					}
 					continue
 				}
 
