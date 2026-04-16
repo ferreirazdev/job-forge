@@ -1,5 +1,7 @@
 # Job Forge
 
+![Job Forge](assets/logo.png)
+
 A concurrent notification service in Go, starting with **email** and designed to scale to new channels (SMS, push, WhatsApp, and more) without changing the core processing pipeline.
 
 ![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)
